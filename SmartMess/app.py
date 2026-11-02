@@ -160,10 +160,10 @@ if page == "Overview":
     </div>
     """, unsafe_allow_html=True)
     try:
-        students_count = int(read("SELECT COUNT(*) n FROM Students").iloc[0, 0])
-        meals_count = int(read("SELECT COUNT(*) n FROM Meals").iloc[0, 0])
-        wasted = float(read("SELECT COALESCE(SUM(wasted_kg),0) n FROM Food_Records").iloc[0, 0])
-        surplus = float(read("SELECT COALESCE(SUM(quantity_kg),0) n FROM Surplus_Food").iloc[0, 0])
+        students_count = int(read("SELECT COUNT(*) n FROM students").iloc[0, 0])
+        meals_count = int(read("SELECT COUNT(*) n FROM meals").iloc[0, 0])
+        wasted = float(read("SELECT COALESCE(SUM(wasted_kg),0) n FROM food_records").iloc[0, 0])
+        surplus = float(read("SELECT COALESCE(SUM(quantity_kg),0) n FROM surplus_food").iloc[0, 0])
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total students", f"{students_count:,}", help="Registered hostel students")
@@ -177,7 +177,7 @@ if page == "Overview":
             recent = read("""
                 SELECT meal_date AS Date, meal_type AS Meal,
                        menu_description AS Menu, price_per_plate AS `Price (₹)`
-                FROM Meals ORDER BY meal_date DESC, meal_id DESC LIMIT 7
+                FROM meals ORDER BY meal_date DESC, meal_id DESC LIMIT 7
             """)
             st.dataframe(recent, use_container_width=True, hide_index=True)
         with right:
@@ -186,7 +186,7 @@ if page == "Overview":
                 SELECT COALESCE(SUM(consumed_kg),0) AS Consumed,
                        COALESCE(SUM(wasted_kg),0) AS Wasted,
                        COALESCE(SUM(surplus_kg),0) AS Surplus
-                FROM Food_Records
+                FROM food_records
             """)
             chart_df = food.melt(var_name="Category", value_name="Kilograms")
             fig = px.pie(chart_df, names="Category", values="Kilograms", hole=.66,
@@ -216,7 +216,7 @@ elif page == "Students":
                     st.warning("Name and room number are required.")
                 else:
                     ok, msg = execute(
-                        "INSERT INTO Students (name,room_no,phone,email) VALUES (%s,%s,%s,%s)",
+                        "INSERT INTO students (name,room_no,phone,email) VALUES (%s,%s,%s,%s)",
                         (name.strip(), room.strip(), phone.strip() or None, email.strip() or None)
                     )
                     show_result(ok, msg)
@@ -225,7 +225,7 @@ elif page == "Students":
         df = read("""
             SELECT student_id AS ID, name AS Name, room_no AS Room,
                    phone AS Phone, email AS Email
-            FROM Students ORDER BY student_id DESC
+            FROM students ORDER BY student_id DESC
         """)
         st.caption(f"{len(df)} records")
         st.dataframe(df, use_container_width=True, hide_index=True)
@@ -246,7 +246,7 @@ elif page == "Meal Planner":
             save = st.form_submit_button("Save meal", type="primary", use_container_width=True)
             if save:
                 ok, msg = execute(
-                    "INSERT INTO Meals (meal_date,meal_type,menu_description,price_per_plate) VALUES (%s,%s,%s,%s)",
+                    "INSERT INTO meals (meal_date,meal_type,menu_description,price_per_plate) VALUES (%s,%s,%s,%s)",
                     (date, meal_type, menu.strip(), price)
                 )
                 show_result(ok, msg)
@@ -255,7 +255,7 @@ elif page == "Meal Planner":
         df = read("""
             SELECT meal_id AS ID, meal_date AS Date, meal_type AS Meal,
                    menu_description AS Menu, price_per_plate AS `Price (₹)`
-            FROM Meals ORDER BY meal_date DESC, meal_id DESC
+            FROM meals ORDER BY meal_date DESC, meal_id DESC
         """)
         st.dataframe(df, use_container_width=True, hide_index=True)
     except Exception as e:
@@ -266,8 +266,8 @@ elif page == "Meal Planner":
 elif page == "Attendance":
     page_heading("Meal attendance", "Mark whether a student attended a selected meal.")
     try:
-        students = read("SELECT student_id, name, room_no FROM Students ORDER BY name")
-        meals = read("SELECT meal_id, meal_date, meal_type FROM Meals ORDER BY meal_date DESC, meal_id DESC")
+        students = read("SELECT student_id, name, room_no FROM students ORDER BY name")
+        meals = read("SELECT meal_id, meal_date, meal_type FROM meals ORDER BY meal_date DESC, meal_id DESC")
         if students.empty or meals.empty:
             st.info("Add students and meals first. They will appear here automatically.")
         else:
@@ -287,7 +287,7 @@ elif page == "Attendance":
                 save = st.form_submit_button("Save attendance", type="primary", use_container_width=True)
                 if save:
                     ok, msg = execute("""
-                        INSERT INTO Attendance (student_id,meal_id,status)
+                        INSERT INTO attendance (student_id,meal_id,status)
                         VALUES (%s,%s,%s)
                         ON DUPLICATE KEY UPDATE status=VALUES(status)
                     """, (student_map[student_label], meal_map[meal_label], status))
@@ -296,9 +296,9 @@ elif page == "Attendance":
         df = read("""
             SELECT a.attendance_id AS ID, s.name AS Student, s.room_no AS Room,
                    m.meal_date AS Date, m.meal_type AS Meal, a.status AS Status
-            FROM Attendance a
-            JOIN Students s ON a.student_id=s.student_id
-            JOIN Meals m ON a.meal_id=m.meal_id
+            FROM attendance a
+            JOIN students s ON a.student_id=s.student_id
+            JOIN meals m ON a.meal_id=m.meal_id
             ORDER BY a.attendance_id DESC
         """)
         st.dataframe(df, use_container_width=True, hide_index=True)
@@ -314,7 +314,7 @@ elif page == "Finance":
             SELECT b.bill_id AS `Bill ID`, s.name AS Student,
                    b.bill_month AS Month, b.total_amount AS `Amount (₹)`,
                    b.payment_status AS Status
-            FROM Bills b JOIN Students s ON b.student_id=s.student_id
+            FROM bills b JOIN students s ON b.student_id=s.student_id
             ORDER BY b.bill_month DESC, b.bill_id
         """)
         st.subheader("Monthly bills")
@@ -323,7 +323,7 @@ elif page == "Finance":
         with st.expander("＋  Record a payment"):
             bill_rows = read("""
                 SELECT b.bill_id, s.name, b.total_amount
-                FROM Bills b JOIN Students s ON b.student_id=s.student_id
+                FROM bills b JOIN students s ON b.student_id=s.student_id
                 ORDER BY b.bill_id
             """)
             if bill_rows.empty:
@@ -340,7 +340,7 @@ elif page == "Finance":
                     save = st.form_submit_button("Save payment", type="primary", use_container_width=True)
                     if save:
                         ok, msg = execute(
-                            "INSERT INTO Payments (bill_id,amount,mode) VALUES (%s,%s,%s)",
+                            "INSERT INTO payments (bill_id,amount,mode) VALUES (%s,%s,%s)",
                             (choices[selected], amount, mode)
                         )
                         show_result(ok, msg)
@@ -349,9 +349,9 @@ elif page == "Finance":
         payments = read("""
             SELECT p.payment_id AS ID, s.name AS Student, p.amount AS `Amount (₹)`,
                    p.payment_date AS Date, p.mode AS Method
-            FROM Payments p
-            JOIN Bills b ON p.bill_id=b.bill_id
-            JOIN Students s ON b.student_id=s.student_id
+            FROM payments p
+            JOIN bills b ON p.bill_id=b.bill_id
+            JOIN students s ON b.student_id=s.student_id
             ORDER BY p.payment_date DESC
         """)
         st.dataframe(payments, use_container_width=True, hide_index=True)
@@ -370,7 +370,7 @@ elif page == "Food & Impact":
                 SELECT m.meal_date AS Date, m.meal_type AS Meal,
                        f.prepared_kg AS Prepared, f.consumed_kg AS Consumed,
                        f.wasted_kg AS Wasted, f.surplus_kg AS Surplus
-                FROM Food_Records f JOIN Meals m ON f.meal_id=m.meal_id
+                FROM food_records f JOIN meals m ON f.meal_id=m.meal_id
                 ORDER BY m.meal_date, m.meal_type
             """)
             st.dataframe(food, use_container_width=True, hide_index=True)
@@ -394,7 +394,7 @@ elif page == "Food & Impact":
                        sf.quantity_kg AS `Quantity (kg)`,
                        sf.is_donation_safe AS `Donation safe`,
                        sf.expiry_time AS `Expiry time`, sf.status AS Status
-                FROM Surplus_Food sf JOIN Meals m ON sf.meal_id=m.meal_id
+                FROM surplus_food sf JOIN meals m ON sf.meal_id=m.meal_id
                 ORDER BY sf.expiry_time
             """)
             st.dataframe(stock, use_container_width=True, hide_index=True)
@@ -408,7 +408,7 @@ elif page == "Food & Impact":
                        d.quantity_kg AS `Quantity (kg)`,
                        d.request_date AS Requested, d.pickup_date AS Pickup,
                        d.status AS Status
-                FROM Donations d JOIN NGOs n ON d.ngo_id=n.ngo_id
+                FROM donations d JOIN ngos n ON d.ngo_id=n.ngo_id
                 ORDER BY d.request_date DESC
             """)
             st.dataframe(donations, use_container_width=True, hide_index=True)
